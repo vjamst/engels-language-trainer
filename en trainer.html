@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EN ↔ NL Woordentrainer + Zinnen (Selecteerbare bank)</title>
+<style>
+  :root { --bg:#0f172a; --panel:#111827; --muted:#94a3b8; --ok:#10b981; --bad:#ef4444; --accent:#f59e0b; --blue:#2563eb; }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial,sans-serif;
+    background:linear-gradient(180deg,#0ea5e9 0%, #1e293b 30%, var(--bg) 100%);
+    color:#f8fafc; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .app{ width:min(1100px,100%); background:rgba(17,24,39,.9); border:1px solid #334155; border-radius:16px;
+    box-shadow:0 10px 40px rgba(0,0,0,.35); overflow:hidden; }
+  header{padding:18px 20px; display:flex; align-items:center; gap:14px; background:#0b1220; flex-wrap:wrap}
+  header h1{font-size:1.2rem; margin:0; letter-spacing:.4px; font-weight:700}
+  header small{color:var(--muted)}
+  main{padding:20px}
+  .row{display:flex; gap:16px; flex-wrap:wrap; align-items:center}
+  .card{background:#0f172a; border:1px solid #1f2937; border-radius:12px; padding:16px}
+  .controls .card{display:flex; gap:12px; flex-wrap:wrap; align-items:center}
+  select, button, input[type="text"], input[type="search"]{
+    background:#111827; color:#e5e7eb; border:1px solid #374151; border-radius:10px; padding:10px 12px;
+    font-size:1rem;
+  }
+  button{cursor:pointer}
+  button.primary{background:var(--blue); border-color:var(--blue)}
+  button.secondary{background:#1f2937}
+  button.ghost{background:transparent; border:1px dashed #334155}
+  button:disabled{opacity:.5; cursor:not-allowed}
+  .mode-toggle{display:flex; gap:8px; align-items:center}
+  .mode-toggle label{display:flex; gap:6px; align-items:center; background:#0b1220; padding:8px 10px;
+    border-radius:999px; border:1px solid #334155}
+  .pill{padding:4px 10px; border-radius:999px; background:#0b1220; border:1px solid #334155; color:#cbd5e1}
+  .prompt{ text-align:center; padding:26px; border-radius:14px; border:1px dashed #334155; background:#0b1220; margin-top:10px }
+  .prompt h2{margin:0; font-size:2rem}
+  .prompt .sub{color:var(--muted); margin-top:6px}
+  .practice{margin-top:16px; display:grid; gap:12px}
+  .feedback{min-height:24px; font-weight:650}
+  .ok{color:var(--ok)} .bad{color:var(--bad)} .hint{color:var(--muted)}
+  .footer{display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:center}
+  .score{color:#93c5fd}
+  details summary{cursor:pointer; color:#fbbf24; margin-bottom:6px}
+  .list{display:flex; gap:10px; flex-wrap:wrap}
+  .list .pill{background:#0f172a}
+  .tiny{font-size:.85rem; color:var(--muted)}
+  .hidden{display:none}
+  .badge{font-size:.8rem; color:#e5e7eb; background:#2d3748; border:1px solid #334155; padding:4px 8px; border-radius:999px}
+  .bank{display:grid; grid-template-columns: 300px 1fr; gap:14px; max-height:420px}
+  .bank .left, .bank .right{background:#0b1220; border:1px solid #334155; border-radius:12px; padding:12px; overflow:auto}
+  .bank h3{margin:0 0 8px 0; font-size:1rem}
+  .setBtn{display:flex; justify-content:space-between; align-items:center; gap:8px; width:100%; margin:4px 0;
+    background:#0f172a; border:1px solid #1f2937; border-radius:10px; padding:8px 10px}
+  .setBtn.active{border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset}
+  .itemRow{display:flex; gap:8px; align-items:baseline; border-bottom:1px dashed #1f2937; padding:6px 0}
+  .itemRow code{color:#e5e7eb}
+  .itemRow .tag{margin-left:auto; color:#93c5fd; font-size:.8rem}
+  .sticky{position:sticky; top:0; background:#0b1220; padding-bottom:6px}
+</style>
+</head>
+<body>
+<div class="app" role="application" aria-label="EN NL woordentrainer">
+  <header>
+    <h1>EN ↔ NL Woordentrainer + Zinnen</h1>
+    <small>Kies zinnen/woorden uit de bank en oefen. Typ het antwoord of gebruik 🔊.</small>
+  </header>
+  <main>
+    <section class="controls row">
+      <div class="card">
+        <button id="openBank" class="ghost">📚 Open oefenbank (selecteer items)</button>
+        <span class="tiny">Geselecteerd: <span id="selCount">0</span> items</span>
+      </div>
+      <div class="card mode-toggle">
+        <label title="Vertaalrichting">
+          <input type="radio" name="dir" value="EN2NL" checked />
+          <span>Engels → Nederlands</span>
+        </label>
+        <label title="Vertaalrichting">
+          <input type="radio" name="dir" value="NL2EN" />
+          <span>Nederlands → Engels</span>
+        </label>
+        <button id="toggleDir" class="pill" title="Wissel richting (X)">↔︎ Wissel</button>
+      </div>
+      <div class="card">
+        <button id="startBtn" class="primary">Start oefening</button>
+        <button id="resetBtn" class="secondary">Reset</button>
+      </div>
+    </section>
+
+    <!-- Selection bank -->
+    <section id="bankSection" class="card hidden">
+      <div class="bank">
+        <div class="left">
+          <div class="sticky">
+            <h3>Sets</h3>
+            <div class="row" style="gap:8px; margin-bottom:6px">
+              <button id="selectAllSet" class="pill">Alles</button>
+              <button id="clearSets" class="pill">Niets</button>
+            </div>
+          </div>
+          <div id="setList"></div>
+        </div>
+        <div class="right">
+          <div class="sticky">
+            <h3>Items in set</h3>
+            <div class="row" style="gap:8px; margin-bottom:8px">
+              <input id="searchItems" type="search" placeholder="Zoek in items…" style="flex:1"/>
+              <button id="selectAllItems" class="pill">Alles</button>
+              <button id="clearItems" class="pill">Niets</button>
+            </div>
+          </div>
+          <div id="itemList"></div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="closeBank" class="secondary">Sluiten</button>
+        <button id="useSelection" class="primary">▶ Oefen met selectie</button>
+      </div>
+    </section>
+
+    <section id="practiceArea" class="hidden">
+      <div class="prompt" aria-live="polite">
+        <div class="sub"><span id="progress">—</span> <span id="modeBadge" class="badge hidden">ZIN</span></div>
+        <h2 id="question">Klik Start</h2>
+        <div class="sub" id="helper">Typ je antwoord hieronder.</div>
+      </div>
+      <div class="practice">
+        <label for="answer" class="tiny">Jouw antwoord</label>
+        <input id="answer" type="text" autocomplete="off" placeholder="typ hier..." />
+        <div class="footer">
+          <button id="speakBtn" title="Uitspraak (Engels of Nederlands)">🔊 Uitspraak</button>
+          <button id="hintBtn" class="pill" title="Toon eerste letter">👀 Hint</button>
+          <button id="idkBtn" class="pill" title="Ik weet het niet">🤷 Ik weet het niet</button>
+          <button id="checkBtn" class="primary">Check</button>
+          <button id="nextBtn" class="secondary" disabled>Volgende ▶</button>
+        </div>
+        <div id="feedback" class="feedback" aria-live="polite"></div>
+        <div class="tiny">Sneltoetsen: <kbd>Enter</kbd> = Check • <kbd>X</kbd> = Richting wisselen</div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <div class="card"><span class="score">Score: <span id="score">0</span> / <span id="total">0</span></span></div>
+        <div class="card"><span>Reeks correct op rij: <span id="streak">0</span></span></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+/* --------------------------
+   HELPER FUNCTIONS
+---------------------------*/
+const norm = (s) => (s || '').toString().toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[’']/g,"'").trim();
+
+function speak(text, lang='en-GB'){
+  try{ const u = new SpeechSynthesisUtterance(text); u.lang = lang; speechSynthesis.cancel(); speechSynthesis.speak(u); }
+  catch(e){ console.warn('TTS not available', e); }
+}
+
+/* --------------------------
+   DATA
+---------------------------*/
+const vocab = (en, nl)=>({type:'vocab', en, nl:Array.isArray(nl)?nl:[nl]});
+const cloze = (s, answers)=>({type:'cloze', sentence:s, answers:Array.isArray(answers)?answers:[answers], lang:'en'});
+
+const BANK = [
+  {name:'Possessive adjectives (vocab)', items:[
+    vocab('my','mijn'),vocab('your',['jouw','je','uw']),vocab('his','zijn'),vocab('her','haar'),
+    vocab('its',['zijn','haar']),vocab('our',['ons','onze']),vocab('their','hun')
+  ]},
+  {name:'To be (forms vocab)', items:[
+    vocab('I am','ik ben'),vocab('you are','jij bent'),vocab('he is','hij is'),vocab('she is','zij is'),
+    vocab('it is','het is'),vocab('we are','wij zijn'),vocab('you are (plural)','jullie zijn'),vocab('they are','zij zijn'),
+    vocab('am','ben'),vocab('are',['bent','zijn']),vocab('is','is')
+  ]},
+  {name:'Sentences: possessives (fill-in)', items:[
+    cloze('Although it was late, ___ parents let us stay up to finish the movie. (I)', 'my'),
+    cloze('When Liam forgot ___ keys, we had to wait outside. (Liam)', 'his'),
+    cloze('She says ___ sister will join us if the homework is done. (she)', 'her'),
+    cloze('We repainted ___ bedroom after the summer holiday. (we)', 'our'),
+    cloze('The puppy chased ___ tail until it fell asleep. (it)', 'its'),
+    cloze('If you bring ___ notes, we can study together at lunch. (you)', 'your'),
+    cloze('The team celebrated ___ victory even though it was a friendly match. (they)', 'their'),
+    cloze('Because the wind was strong, the tree lost ___ leaves early this year. (it)', 'its'),
+    cloze('I can’t find ___ phone, but I’m sure I left it on the table. (I)', 'my'),
+    cloze('After Tom finished ___ chores, he played football in the park. (Tom)', 'his'),
+    cloze('Although they sold ___ car, they still visit every weekend. (they)', 'their'),
+    cloze('She lent me ___ book, which I promised to return tomorrow. (she)', 'her'),
+    cloze('We’ll bake a cake for ___ teacher, whose birthday is on Friday. (we)', 'our'),
+    cloze('Is this ___ umbrella, or should I put it in the lost-and-found? (you)', 'your'),
+    cloze('The cat curled up in ___ favorite spot while we watched TV. (it)', 'its'),
+    cloze('This is ___ book. (I)','my'),
+    cloze('Is that ___ guitar? (they)','their'),
+    cloze('___ brother is twelve. (she)','her'),
+    cloze('We can’t find ___ keys. (we)','our'),
+    cloze('Tom lost ___ skateboard. (he)','his'),
+    cloze('The dog is wagging ___ tail. (it)','its'),
+    cloze('Is this ___ homework? (you)','your'),
+    cloze('These are ___ shoes. (they)','their')
+  ]},
+  {name:'Sentences: to be (fill-in)', items:[
+    cloze('I ___ twelve years old.','am'),
+    cloze('She ___ from London.','is'),
+    cloze('They ___ at school today.','are'),
+    cloze('We ___ not late.',['are','aren’t','are not']),
+    cloze('___ you ready?','are'),
+    cloze('He ___ my teacher.','is'),
+    cloze('It ___ Monday.','is'),
+    cloze('The books ___ on the table.','are')
+  ]}
+];
+
+/* --------------------------
+   SELECTION BANK LOGIC
+---------------------------*/
+let chosenSetIndex = 0;
+let selectedIds = new Set(); 
+const setListEl = document.getElementById('setList');
+const itemListEl = document.getElementById('itemList');
+const bankSection = document.getElementById('bankSection');
+const selCountEl = document.getElementById('selCount');
+const searchItems = document.getElementById('searchItems');
+
+function renderSets(){
+  setListEl.innerHTML='';
+  BANK.forEach((s, i)=>{
+    const b=document.createElement('button');
+    b.className='setBtn'+(i===chosenSetIndex?' active':''); b.innerHTML=`<span>${s.name}</span><span class="tiny">${s.items.length}</span>`;
+    b.onclick=()=>{ chosenSetIndex=i; renderSets(); renderItems(); };
+    setListEl.appendChild(b);
+  });
+}
+function renderItems(){
+  const s = BANK[chosenSetIndex];
+  const q = norm(searchItems?.value||'');
+  itemListEl.innerHTML='';
+  s.items.forEach((it, j)=>{
+    const id=`${chosenSetIndex}-${j}`;
+    const label = it.type==='cloze' ? it.sentence : `${it.en} ⇄ ${it.nl[0]}`;
+    if(q && norm(label).indexOf(q)===-1) return;
+    const row=document.createElement('div'); row.className='itemRow';
+    const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=selectedIds.has(id);
+    cb.onchange=()=>{ cb.checked?selectedIds.add(id):selectedIds.delete(id); updateSelCount(); };
+    const text=document.createElement('label'); text.innerHTML=`${label.replace('___','<u>&nbsp;&nbsp;&nbsp;</u>')}`;
+    const tag=document.createElement('span'); tag.className='tag'; tag.textContent= it.type==='cloze'?'ZIN':'WOORD';
+    row.appendChild(cb); row.appendChild(text); row.appendChild(tag);
+    itemListEl.appendChild(row);
+  });
+}
+function updateSelCount(){ selCountEl.textContent = selectedIds.size; }
+
+document.getElementById('openBank').onclick = ()=>{ bankSection.classList.remove('hidden'); renderSets(); renderItems(); };
+document.getElementById('closeBank').onclick = ()=> bankSection.classList.add('hidden');
+document.getElementById('useSelection').onclick = ()=>{ bankSection.classList.add('hidden'); buildPoolFromSelection(); };
+
+document.getElementById('selectAllSet').onclick = ()=>{ const s=BANK[chosenSetIndex]; s.items.forEach((_,j)=>selectedIds.add(`${chosenSetIndex}-${j}`)); renderItems(); updateSelCount(); };
+document.getElementById('clearSets').onclick = ()=>{ selectedIds.clear(); updateSelCount(); renderItems(); };
+document.getElementById('selectAllItems').onclick = ()=>{ const s=BANK[chosenSetIndex]; s.items.forEach((_,j)=>selectedIds.add(`${chosenSetIndex}-${j}`)); renderItems(); updateSelCount(); };
+document.getElementById('clearItems').onclick = ()=>{ const s=BANK[chosenSetIndex]; s.items.forEach((_,j)=>selectedIds.delete(`${chosenSetIndex}-${j}`)); renderItems(); updateSelCount(); };
+searchItems?.addEventListener('input', renderItems);
+
+/* --------------------------
+   PRACTICE LOGIC
+---------------------------*/
+let pool=[], idx=-1, dir='EN2NL', score=0, total=0, streak=0, currentItem=null;
+const qEl = document.getElementById('question');
+const helper = document.getElementById('helper');
+const progress = document.getElementById('progress');
+const answerEl = document.getElementById('answer');
+const feedback = document.getElementById('feedback');
+const scoreEl = document.getElementById('score');
+const totalEl = document.getElementById('total');
+const streakEl = document.getElementById('streak');
+const nextBtn = document.getElementById('nextBtn');
+const checkBtn = document.getElementById('checkBtn');
+const idkBtn = document.getElementById('idkBtn');
+const hintBtn = document.getElementById('hintBtn');
+const speakBtn = document.getElementById('speakBtn');
+const modeBadge = document.getElementById('modeBadge');
+
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+function buildPoolFromSelection(){
+  const arr=[];
+  if(selectedIds.size===0){ // default: alles uit eerste set
+    BANK[0].items.forEach((_,j)=> selectedIds.add(`0-${j}`));
+  }
+  selectedIds.forEach(id => {
+    const [si, ji] = id.split('-').map(Number);
+    const item = BANK[si].items[ji];
+    if(item) arr.push(item);
+  });
+  pool = shuffle(arr.slice());
+  total = pool.length; totalEl.textContent = total;
+}
+
+function next(){
+  idx++; if(idx>=pool.length){ pool=shuffle(pool); idx=0; }
+  currentItem = pool[idx];
+  if(currentItem.type==='cloze'){
+    document.querySelectorAll('input[name="dir"]').forEach(r => r.disabled = true);
+    document.getElementById('toggleDir').disabled = true;
+    modeBadge.classList.remove('hidden');
+    qEl.textContent = currentItem.sentence;
+    helper.textContent = "Vul het ontbrekende woord in (Engels).";
+  }else{
+    document.querySelectorAll('input[name="dir"]').forEach(r => r.disabled = false);
+    document.getElementById('toggleDir').disabled = false;
+    modeBadge.classList.add('hidden');
+    const prompt = (dir==='EN2NL') ? currentItem.en : currentItem.nl[0];
+    qEl.textContent = prompt;
+    helper.textContent = (dir==='EN2NL') ? "Vertaal naar Nederlands" : "Vertaal naar Engels";
+  }
+  progress.textContent = `Item ${idx+1} van ${pool.length}`;
+  feedback.textContent=''; answerEl.value=''; nextBtn.disabled=true; answerEl.focus();
+}
+
+function check(){
+  const val = norm(answerEl.value); if(!val){ feedback.innerHTML='<span class="hint">Typ je antwoord…</span>'; return; }
+  let ok=false, correctShown='';
+  if(currentItem.type==='cloze'){
+    ok = currentItem.answers.some(a => norm(a)===val);
+    correctShown = currentItem.answers.join(' / ');
+  }else if(dir==='EN2NL'){
+    ok = currentItem.nl.some(n => norm(n)===val); correctShown = currentItem.nl.join(' / ');
+  }else{
+    ok = norm(currentItem.en)===val; correctShown = currentItem.en;
+  }
+  if(ok){ score++; streak++; scoreEl.textContent=score; streakEl.textContent=streak;
+    feedback.innerHTML='<span class="ok">✅ Goed!</span>';
+  } else { streak=0; streakEl.textContent=streak;
+    feedback.innerHTML=`<span class="bad">✖ Fout.</span> <span class="hint">Juist: <b>${correctShown}</b></span>`;
+  }
+  nextBtn.disabled=false;
+}
+
+function speakCurrent(){
+  if(currentItem.type==='cloze'){
+    speak(currentItem.sentence.replace('___','…'), 'en-GB');
+  }else{
+    const text = (dir==='EN2NL') ? currentItem.en : currentItem.en;
+    speak(text, 'en-GB');
+  }
+}
+
+document.getElementById('startBtn').onclick = () => {
+  buildPoolFromSelection();
+  score=0; streak=0; idx=-1; scoreEl.textContent=0; streakEl.textContent=0;
+  document.getElementById('practiceArea').classList.remove('hidden');
+  next();
+};
+document.getElementById('resetBtn').onclick = () => { score=0; streak=0; idx=-1; scoreEl.textContent=0; streakEl.textContent=0; buildPoolFromSelection(); next(); };
+
+checkBtn.onclick = check; nextBtn.onclick = next;
+idkBtn.onclick = () => { let correct=(currentItem.type==='cloze')? currentItem.answers.join(' / ') : (dir==='EN2NL'? currentItem.nl.join(' / ') : currentItem.en); feedback.innerHTML=`<span class="hint">Juist: <b>${correct}</b></span>`; streak=0; streakEl.textContent=streak; nextBtn.disabled=false; };
+hintBtn.onclick = () => { const key=(currentItem.type==='cloze')? currentItem.answers[0] : (dir==='EN2NL'? currentItem.nl[0] : currentItem.en); answerEl.value = key.slice(0,1) + (answerEl.value||''); answerEl.focus(); };
+speakBtn.onclick = speakCurrent;
+
+document.getElementById('toggleDir').onclick = () => { dir = (dir==='EN2NL') ? 'NL2EN' : 'EN2NL'; document.querySelectorAll('input[name="dir"]').forEach(r => r.checked=(r.value===dir)); };
+document.querySelectorAll('input[name="dir"]').forEach(r => r.addEventListener('change', e => { dir=e.target.value; }));
+document.addEventListener('keydown', (e) => { if(e.key==='Enter'){ e.preventDefault(); check(); } if(e.key.toLowerCase()==='x'){ e.preventDefault(); document.getElementById('toggleDir').click(); }});
+</script>
+</body>
+</html>
